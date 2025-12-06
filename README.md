@@ -74,7 +74,10 @@ youtube-bot yt-test
 مرحله ۵: شروع ربات
 bash
 # شروع ربات
+```
 youtube-bot start
+```
+
 
 # بررسی وضعیت
 youtube-bot status
