@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Telegram YouTube Video Downloader Bot Installer
-# Fixed URL Encoding Version
+# Fixed URL Encoding Version - English Text
 
 set -e
 
@@ -73,14 +73,14 @@ create_bot_dir() {
     print_success "Directory created: /opt/youtube_bot"
 }
 
-# Create fixed bot.py script
+# Create fixed bot.py script with English text
 create_bot_script() {
-    print_info "Creating fixed bot script..."
+    print_info "Creating fixed bot script with English text..."
     
     cat > /opt/youtube_bot/bot.py << 'BOTEOF'
 #!/usr/bin/env python3
 """
-Fixed YouTube Downloader Bot with URL Encoding Fix
+Fixed YouTube Downloader Bot with URL Encoding Fix - English Version
 """
 
 import os
@@ -328,21 +328,21 @@ def create_quality_keyboard(formats: List[Dict], url: str, page: int = 0) -> Inl
     nav_buttons = []
     
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"nav:{page-1}:{encoded_url}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"nav:{page-1}:{encoded_url}"))
     
     if end_idx < len(formats):
-        nav_buttons.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"nav:{page+1}:{encoded_url}"))
+        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"nav:{page+1}:{encoded_url}"))
     
     if nav_buttons:
         keyboard.append(nav_buttons)
     
     # Add quick action buttons
     keyboard.append([
-        InlineKeyboardButton("🎯 بهترین کیفیت", callback_data=f"best:{encoded_url}"),
-        InlineKeyboardButton("🎵 فقط صدا", callback_data=f"audio:{encoded_url}")
+        InlineKeyboardButton("🎯 Best Quality", callback_data=f"best:{encoded_url}"),
+        InlineKeyboardButton("🎵 Audio Only", callback_data=f"audio:{encoded_url}")
     ])
     
-    keyboard.append([InlineKeyboardButton("❌ انصراف", callback_data="cancel")])
+    keyboard.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel")])
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -351,37 +351,37 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
     text = f"""
-🎬 *ربات دانلود یوتیوب*
+🎬 *YouTube Downloader Bot*
 
-👋 سلام {user.first_name}!
+👋 Hello {user.first_name}!
 
-من می‌توانم ویدیوهای یوتیوب را با *انتخاب کیفیت* دانلود کنم.
+I can download YouTube videos with *quality selection*.
 
-✨ *ویژگی‌ها:*
-• دانلود با *کیفیت‌های مختلف*
-• نمایش *حجم فایل* قبل از دانلود
-• استخراج صدا
-• سریع و قابل اعتماد
+✨ *Features:*
+• Download in *multiple qualities*
+• See *file sizes* before downloading
+• Audio extraction
+• Fast and reliable
 
-📌 *نحوه استفاده:*
-1. لینک یوتیوب را برای من بفرستید
-2. من کیفیت‌های موجود را نشان می‌دهم
-3. کیفیت مورد نظر را انتخاب کنید
-4. فایل را دریافت کنید
+📌 *How to use:*
+1. Send me a YouTube link
+2. I'll show available qualities
+3. Select your preferred quality
+4. Receive your file
 
-🔗 *لینک‌های پشتیبانی شده:*
+🔗 *Supported URLs:*
 • youtube.com/watch?v=...
 • youtu.be/...
 • youtube.com/shorts/...
 • youtube.com/live/...
 
-⚡ *دستورات:*
-/start - نمایش این پیام
-/help - راهنمایی
-/formats <لینک> - نمایش فرمت‌ها
+⚡ *Commands:*
+/start - Show this message
+/help - Help information
+/formats <link> - Show formats directly
 
-📊 *انتخاب کیفیت:*
-من *تمام فرمت‌های موجود* را با *حجم فایل* نشان می‌دهم.
+📊 *Quality Selection:*
+I'll show you *all available formats* with their *file sizes*.
     """
     
     await update.message.reply_text(text, parse_mode='Markdown')
@@ -389,37 +389,37 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""
     text = """
-🤖 *راهنمای ربات یوتیوب*
+🤖 *YouTube Bot Help*
 
-📌 *نحوه دانلود:*
-1. یک لینک یوتیوب بفرستید
-2. من فرمت‌های موجود را بررسی می‌کنم
-3. کیفیت را از لیست انتخاب کنید
-4. منتظر دانلود بمانید
-5. فایل را دریافت کنید
+📌 *How to download:*
+1. Send a YouTube link
+2. I'll analyze available formats
+3. Choose quality from list
+4. Wait for download
+5. Receive your file
 
-🎯 *انواع فرمت:*
-• 🎬 ویدیو+صدا (کامل)
-• 📹 فقط ویدیو
-• 🎵 فقط صدا
+🎯 *Format Types:*
+• 🎬 Video+Audio (complete)
+• 📹 Video only
+• 🎵 Audio only
 
-📊 *حجم فایل:*
-همه فرمت‌ها حجم تخمینی را نشان می‌دهند
+📊 *File Sizes:*
+All formats show estimated file size
 
-⚡ *دستورات سریع:*
-/formats <لینک> - نمایش فرمت‌ها مستقیم
-/audio <لینک> - دانلود بهترین صدا
-/video <لینک> - دانلود بهترین ویدیو
+⚡ *Quick Commands:*
+/formats <link> - Show formats directly
+/audio <link> - Download best audio
+/video <link> - Download best video
 
-⚠️ *محدودیت‌ها:*
-• حداکثر حجم فایل: ۲ گیگابایت (محدودیت تلگرام)
-• ویدیوهای طولانی ممکن است زمان‌بر باشند
-• برخی فرمت‌ها ممکن است ناموفق باشند
+⚠️ *Limits:*
+• Max file size: 2GB (Telegram limit)
+• Long videos may take time
+• Some formats may fail
 
-💡 *نکات:*
-• 720p/480p برای تعادل کیفیت/حجم مناسب‌اند
-• MP4 برای بهترین سازگاری
-• MP3 برای صدا
+💡 *Tips:*
+• 720p/480p for good quality/size balance
+• MP4 for best compatibility
+• MP3 for audio
     """
     
     await update.message.reply_text(text, parse_mode='Markdown')
@@ -427,7 +427,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def formats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /formats command"""
     if not context.args:
-        await update.message.reply_text("❌ استفاده: /formats <لینک-یوتیوب>")
+        await update.message.reply_text("❌ Usage: /formats <youtube-url>")
         return
     
     url = ' '.join(context.args)
@@ -436,14 +436,14 @@ async def formats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
     """Show available formats for a URL"""
     if not is_youtube_url(url):
-        await update.message.reply_text("❌ لطفاً یک لینک معتبر یوتیوب ارسال کنید")
+        await update.message.reply_text("❌ Please send a valid YouTube URL")
         return
     
     message = None
     if update.message:
-        message = await update.message.reply_text("🔍 در حال بررسی فرمت‌های ویدیو...")
+        message = await update.message.reply_text("🔍 Analyzing video formats...")
     elif update.callback_query:
-        message = await update.callback_query.message.reply_text("🔍 در حال بررسی فرمت‌های ویدیو...")
+        message = await update.callback_query.message.reply_text("🔍 Analyzing video formats...")
     
     try:
         # Clean URL
@@ -453,7 +453,7 @@ async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
         formats, video_info = get_video_formats(url)
         
         if not formats:
-            await message.edit_text("❌ فرمتی پیدا نشد یا لینک نامعتبر است")
+            await message.edit_text("❌ No formats found or invalid URL")
             return
         
         # Store formats in user session
@@ -465,22 +465,22 @@ async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
         }
         
         # Create info message
-        title = video_info.get('title', 'بدون عنوان')[:100]
+        title = video_info.get('title', 'No title')[:100]
         duration = video_info.get('duration', 0)
-        duration_str = f"{duration // 60}:{duration % 60:02d}" if duration else "نامشخص"
-        uploader = video_info.get('uploader', 'نامشخص')[:50]
+        duration_str = f"{duration // 60}:{duration % 60:02d}" if duration else "Unknown"
+        uploader = video_info.get('uploader', 'Unknown')[:50]
         view_count = video_info.get('view_count', 0)
         
         info_text = f"""
-📺 *بررسی ویدیو کامل شد!*
+📺 *Video Analysis Complete!*
 
-🎬 *عنوان:* {title}
-👤 *آپلودکننده:* {uploader}
-👁️ *تعداد بازدید:* {view_count:,}
-⏱️ *مدت زمان:* {duration_str}
-🔢 *تعداد فرمت‌ها:* {len(formats)}
+🎬 *Title:* {title}
+👤 *Uploader:* {uploader}
+👁️ *Views:* {view_count:,}
+⏱️ *Duration:* {duration_str}
+🔢 *Formats Available:* {len(formats)}
 
-*کیفیت مورد نظر را انتخاب کنید:*
+*Select your preferred quality:*
         """
         
         # Create keyboard
@@ -489,8 +489,8 @@ async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
         await message.edit_text(info_text, parse_mode='Markdown', reply_markup=keyboard)
         
     except Exception as e:
-        logger.error(f"خطا در show_formats: {e}")
-        await message.edit_text(f"❌ خطا در بررسی ویدیو: {str(e)[:200]}")
+        logger.error(f"Error in show_formats: {e}")
+        await message.edit_text(f"❌ Error analyzing video: {str(e)[:200]}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages"""
@@ -498,7 +498,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = message.text.strip()
     
     if not is_youtube_url(url):
-        await message.reply_text("❌ لطفاً یک لینک معتبر یوتیوب ارسال کنید")
+        await message.reply_text("❌ Please send a valid YouTube URL")
         return
     
     await show_formats(update, context, url)
@@ -524,14 +524,14 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             formats, _ = get_video_formats(url)
             
             if not formats:
-                await query.edit_message_text("❌ فرمت‌ها پیدا نشدند")
+                await query.edit_message_text("❌ No formats found")
                 return
             
             keyboard = create_quality_keyboard(formats, url, page)
             await query.edit_message_reply_markup(reply_markup=keyboard)
         except Exception as e:
             logger.error(f"Navigation error: {e}")
-            await query.edit_message_text("❌ خطا در ناوبری")
+            await query.edit_message_text("❌ Navigation error")
         return
     
     # Handle format selection
@@ -542,7 +542,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await download_format(query, context, url, format_id)
         except Exception as e:
             logger.error(f"Format selection error: {e}")
-            await query.edit_message_text("❌ خطا در انتخاب فرمت")
+            await query.edit_message_text("❌ Error selecting format")
         return
     
     # Handle best quality
@@ -553,7 +553,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await download_best(query, context, url)
         except Exception as e:
             logger.error(f"Best quality error: {e}")
-            await query.edit_message_text("❌ خطا در دانلود بهترین کیفیت")
+            await query.edit_message_text("❌ Error downloading best quality")
         return
     
     # Handle audio only
@@ -564,12 +564,12 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await download_audio(query, context, url)
         except Exception as e:
             logger.error(f"Audio download error: {e}")
-            await query.edit_message_text("❌ خطا در دانلود صدا")
+            await query.edit_message_text("❌ Error downloading audio")
         return
     
     # Handle cancel
     elif callback_data == 'cancel':
-        await query.edit_message_text("❌ دانلغو شد")
+        await query.edit_message_text("❌ Cancelled")
         return
 
 async def download_format(query, context, url: str, format_id: str):
@@ -578,7 +578,7 @@ async def download_format(query, context, url: str, format_id: str):
     message = query.message
     
     # Update message
-    await message.edit_text(f"⬇️ در حال دانلود فرمت {format_id}...")
+    await message.edit_text(f"⬇️ Downloading format {format_id}...")
     
     try:
         # Create download directory
@@ -615,7 +615,7 @@ async def download_format(query, context, url: str, format_id: str):
             
             # Try alternative method
             if "is not a valid URL" in error_msg:
-                await message.edit_text("🔄 در حال امتحان روش جایگزین...")
+                await message.edit_text("🔄 Trying alternative method...")
                 # Try with different format selection
                 cmd = [
                     'yt-dlp',
@@ -634,7 +634,7 @@ async def download_format(query, context, url: str, format_id: str):
                 stdout, stderr = await process.communicate()
                 
                 if process.returncode != 0:
-                    await message.edit_text(f"❌ دانلود ناموفق: {stderr.decode()[:200]}")
+                    await message.edit_text(f"❌ Download failed: {stderr.decode()[:200]}")
                     return
         
         # Find downloaded file
@@ -653,7 +653,7 @@ async def download_format(query, context, url: str, format_id: str):
                     downloaded_files.append(file_path)
         
         if not downloaded_files:
-            await message.edit_text("❌ فایل پس از دانلود پیدا نشد")
+            await message.edit_text("❌ File not found after download")
             return
         
         file_path = downloaded_files[0]
@@ -661,7 +661,7 @@ async def download_format(query, context, url: str, format_id: str):
         
         # Check file size (Telegram limit: 2GB)
         if file_size > 2000 * 1024 * 1024:
-            await message.edit_text("❌ حجم فایل بیشتر از 2GB است (محدودیت تلگرام)")
+            await message.edit_text("❌ File size exceeds 2GB (Telegram limit)")
             os.remove(file_path)
             return
         
@@ -671,14 +671,14 @@ async def download_format(query, context, url: str, format_id: str):
                 await context.bot.send_audio(
                     chat_id=user_id,
                     audio=f,
-                    caption=f"✅ دانلود شده ({format_size(file_size)})",
+                    caption=f"✅ Downloaded ({format_size(file_size)})",
                     parse_mode='Markdown'
                 )
             elif file_path.endswith(('.mp4', '.mkv', '.webm', '.mov', '.avi')):
                 await context.bot.send_video(
                     chat_id=user_id,
                     video=f,
-                    caption=f"✅ دانلود شده ({format_size(file_size)})",
+                    caption=f"✅ Downloaded ({format_size(file_size)})",
                     parse_mode='Markdown',
                     supports_streaming=True
                 )
@@ -686,7 +686,7 @@ async def download_format(query, context, url: str, format_id: str):
                 await context.bot.send_document(
                     chat_id=user_id,
                     document=f,
-                    caption=f"✅ دانلود شده ({format_size(file_size)})",
+                    caption=f"✅ Downloaded ({format_size(file_size)})",
                     parse_mode='Markdown'
                 )
         
@@ -696,18 +696,18 @@ async def download_format(query, context, url: str, format_id: str):
         except:
             pass
         
-        await message.edit_text(f"✅ دانلود کامل شد! ({format_size(file_size)})")
+        await message.edit_text(f"✅ Download complete! ({format_size(file_size)})")
         
     except Exception as e:
         logger.error(f"Download error: {str(e)}")
-        await message.edit_text(f"❌ خطا در دانلود: {str(e)[:200]}")
+        await message.edit_text(f"❌ Download error: {str(e)[:200]}")
 
 async def download_best(query, context, url: str):
     """Download best video+audio"""
     user_id = query.from_user.id
     message = query.message
     
-    await message.edit_text("🎯 در حال دانلود بهترین کیفیت...")
+    await message.edit_text("🎯 Downloading best quality...")
     
     try:
         # Create download directory
@@ -756,7 +756,7 @@ async def download_best(query, context, url: str):
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
-                await message.edit_text(f"❌ دانلود ناموفق: {stderr.decode()[:200]}")
+                await message.edit_text(f"❌ Download failed: {stderr.decode()[:200]}")
                 return
         
         # Send file
@@ -773,7 +773,7 @@ async def download_best(query, context, url: str):
             
             # Check file size
             if file_size > 2000 * 1024 * 1024:
-                await message.edit_text("❌ حجم فایل بیشتر از 2GB است")
+                await message.edit_text("❌ File size exceeds 2GB")
                 os.remove(file_path)
                 return
             
@@ -781,7 +781,7 @@ async def download_best(query, context, url: str):
                 await context.bot.send_video(
                     chat_id=user_id,
                     video=f,
-                    caption=f"✅ بهترین کیفیت دانلود شده ({format_size(file_size)})",
+                    caption=f"✅ Best quality downloaded ({format_size(file_size)})",
                     parse_mode='Markdown',
                     supports_streaming=True
                 )
@@ -791,20 +791,20 @@ async def download_best(query, context, url: str):
             except:
                 pass
             
-            await message.edit_text(f"✅ بهترین کیفیت دانلود شد! ({format_size(file_size)})")
+            await message.edit_text(f"✅ Best quality downloaded! ({format_size(file_size)})")
         else:
-            await message.edit_text("❌ فایل پس از دانلود پیدا نشد")
+            await message.edit_text("❌ File not found after download")
         
     except Exception as e:
         logger.error(f"Best quality download error: {str(e)}")
-        await message.edit_text(f"❌ خطا در دانلود: {str(e)[:200]}")
+        await message.edit_text(f"❌ Download error: {str(e)[:200]}")
 
 async def download_audio(query, context, url: str):
     """Download audio only"""
     user_id = query.from_user.id
     message = query.message
     
-    await message.edit_text("🎵 در حال دانلود صدا...")
+    await message.edit_text("🎵 Downloading audio...")
     
     try:
         # Create download directory
@@ -856,7 +856,7 @@ async def download_audio(query, context, url: str):
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
-                await message.edit_text(f"❌ دانلود ناموفق: {stderr.decode()[:200]}")
+                await message.edit_text(f"❌ Download failed: {stderr.decode()[:200]}")
                 return
         
         # Send file
@@ -876,7 +876,7 @@ async def download_audio(query, context, url: str):
                 await context.bot.send_audio(
                     chat_id=user_id,
                     audio=f,
-                    caption=f"✅ صدا دانلود شده ({format_size(file_size)})",
+                    caption=f"✅ Audio downloaded ({format_size(file_size)})",
                     parse_mode='Markdown'
                 )
             
@@ -885,13 +885,13 @@ async def download_audio(query, context, url: str):
             except:
                 pass
             
-            await message.edit_text(f"✅ صدا دانلود شد! ({format_size(file_size)})")
+            await message.edit_text(f"✅ Audio downloaded! ({format_size(file_size)})")
         else:
-            await message.edit_text("❌ فایل پس از دانلود پیدا نشد")
+            await message.edit_text("❌ File not found after download")
         
     except Exception as e:
         logger.error(f"Audio download error: {str(e)}")
-        await message.edit_text(f"❌ خطا در دانلود: {str(e)[:200]}")
+        await message.edit_text(f"❌ Download error: {str(e)[:200]}")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""
@@ -899,17 +899,17 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         if update.callback_query:
-            await update.callback_query.message.reply_text("⚠️ خطایی رخ داد. لطفاً دوباره تلاش کنید.")
+            await update.callback_query.message.reply_text("⚠️ An error occurred. Please try again.")
         elif update.message:
-            await update.message.reply_text("⚠️ خطایی رخ داد. لطفاً دوباره تلاش کنید.")
+            await update.message.reply_text("⚠️ An error occurred. Please try again.")
     except:
         pass
 
 def main():
     """Main function"""
     if not BOT_TOKEN:
-        print("❌ خطا: BOT_TOKEN تنظیم نشده است")
-        print("لطفاً توکن ربات خود را در /opt/youtube_bot/.env اضافه کنید")
+        print("❌ ERROR: BOT_TOKEN not set")
+        print("Please add your bot token to /opt/youtube_bot/.env")
         exit(1)
     
     # Create application
@@ -925,38 +925,38 @@ def main():
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_error_handler(error_handler)
     
-    print("🤖 ربات یوتیوب در حال راه‌اندازی...")
+    print("🤖 YouTube Bot starting...")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("✅ ربات آماده دریافت لینک‌های یوتیوب است")
+    print("✅ Bot ready to receive YouTube links")
     
     app.run_polling()
 
 async def download_audio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Command handler for /audio"""
     if not context.args:
-        await update.message.reply_text("❌ استفاده: /audio <لینک-یوتیوب>")
+        await update.message.reply_text("❌ Usage: /audio <youtube-url>")
         return
     
     url = ' '.join(context.args)
     if not is_youtube_url(url):
-        await update.message.reply_text("❌ لینک یوتیوب معتبر نیست")
+        await update.message.reply_text("❌ Invalid YouTube URL")
         return
     
-    msg = await update.message.reply_text("🎵 در حال دانلود صدا...")
+    msg = await update.message.reply_text("🎵 Downloading audio...")
     await download_audio_simple(update, context, url, msg)
 
 async def download_video_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Command handler for /video"""
     if not context.args:
-        await update.message.reply_text("❌ استفاده: /video <لینک-یوتیوب>")
+        await update.message.reply_text("❌ Usage: /video <youtube-url>")
         return
     
     url = ' '.join(context.args)
     if not is_youtube_url(url):
-        await update.message.reply_text("❌ لینک یوتیوب معتبر نیست")
+        await update.message.reply_text("❌ Invalid YouTube URL")
         return
     
-    msg = await update.message.reply_text("🎬 در حال دانلود ویدیو...")
+    msg = await update.message.reply_text("🎬 Downloading video...")
     await download_video_simple(update, context, url, msg)
 
 async def download_audio_simple(update, context, url: str, message):
@@ -987,7 +987,7 @@ async def download_audio_simple(update, context, url: str, message):
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            await message.edit_text(f"❌ خطا: {stderr.decode()[:200]}")
+            await message.edit_text(f"❌ Error: {stderr.decode()[:200]}")
             return
         
         file_path = f'/opt/youtube_bot/downloads/{filename}.mp3'
@@ -996,16 +996,16 @@ async def download_audio_simple(update, context, url: str, message):
                 await context.bot.send_audio(
                     chat_id=user_id,
                     audio=f,
-                    caption="✅ دانلود شده"
+                    caption="✅ Downloaded"
                 )
             os.remove(file_path)
-            await message.edit_text("✅ دانلود کامل شد!")
+            await message.edit_text("✅ Download complete!")
         else:
-            await message.edit_text("❌ فایل پیدا نشد")
+            await message.edit_text("❌ File not found")
             
     except Exception as e:
         logger.error(f"Simple audio error: {e}")
-        await message.edit_text(f"❌ خطا: {str(e)[:200]}")
+        await message.edit_text(f"❌ Error: {str(e)[:200]}")
 
 async def download_video_simple(update, context, url: str, message):
     """Simple video download for command"""
@@ -1033,7 +1033,7 @@ async def download_video_simple(update, context, url: str, message):
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            await message.edit_text(f"❌ خطا: {stderr.decode()[:200]}")
+            await message.edit_text(f"❌ Error: {stderr.decode()[:200]}")
             return
         
         file_path = f'/opt/youtube_bot/downloads/{filename}.mp4'
@@ -1042,46 +1042,46 @@ async def download_video_simple(update, context, url: str, message):
                 await context.bot.send_video(
                     chat_id=user_id,
                     video=f,
-                    caption="✅ دانلود شده",
+                    caption="✅ Downloaded",
                     supports_streaming=True
                 )
             os.remove(file_path)
-            await message.edit_text("✅ دانلود کامل شد!")
+            await message.edit_text("✅ Download complete!")
         else:
-            await message.edit_text("❌ فایل پیدا نشد")
+            await message.edit_text("❌ File not found")
             
     except Exception as e:
         logger.error(f"Simple video error: {e}")
-        await message.edit_text(f"❌ خطا: {str(e)[:200]}")
+        await message.edit_text(f"❌ Error: {str(e)[:200]}")
 
 if __name__ == '__main__':
     main()
 BOTEOF
     
     chmod +x /opt/youtube_bot/bot.py
-    print_success "Fixed bot script created"
+    print_success "Fixed bot script with English text created"
 }
 
-# Create environment file
+# Create environment file with English text
 create_env_file() {
     print_info "Creating environment file..."
     
     cat > /opt/youtube_bot/.env.example << ENVEOF
-# توکن ربات تلگرام از @BotFather
-# مثال: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
+# Telegram Bot Token from @BotFather
+# Example: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
 BOT_TOKEN=your_bot_token_here
 
-# حداکثر حجم فایل (بایت) - محدودیت تلگرام 2GB است
+# Maximum file size in bytes (Telegram limit is 2GB)
 MAX_FILE_SIZE=2000000000
 
-# شناسه کاربران مجاز (با کاما جدا شود)
-# خالی بگذارید تا همه کاربران مجاز باشند
+# Allowed user IDs (comma separated)
+# Leave empty to allow all users
 ALLOWED_USERS=
 
-# پوشه دانلود
+# Download directory
 DOWNLOAD_DIR=/opt/youtube_bot/downloads
 
-# پوشه موقت
+# Temp directory
 TEMP_DIR=/tmp/youtube_bot
 ENVEOF
     
@@ -1124,7 +1124,7 @@ SERVICEEOF
     print_success "Service file created"
 }
 
-# Create control script
+# Create control script with English text
 create_control_script() {
     print_info "Creating control script..."
     
@@ -1134,22 +1134,22 @@ create_control_script() {
 case "\$1" in
     start)
         if [ ! -f /opt/youtube_bot/.env ]; then
-            echo "❌ لطفاً ابتدا ربات را تنظیم کنید: youtube-bot setup"
+            echo "❌ Please setup bot first: youtube-bot setup"
             exit 1
         fi
         
         systemctl start youtube-bot
-        echo "✅ ربات یوتیوب شروع شد"
-        echo "📋 وضعیت: youtube-bot status"
-        echo "📊 لاگ‌ها: youtube-bot logs"
+        echo "✅ YouTube Bot started"
+        echo "📋 Check status: youtube-bot status"
+        echo "📊 View logs: youtube-bot logs"
         ;;
     stop)
         systemctl stop youtube-bot
-        echo "🛑 ربات متوقف شد"
+        echo "🛑 Bot stopped"
         ;;
     restart)
         systemctl restart youtube-bot
-        echo "🔄 ربات راه‌اندازی مجدد شد"
+        echo "🔄 Bot restarted"
         ;;
     status)
         systemctl status youtube-bot --no-pager -l
@@ -1162,130 +1162,129 @@ case "\$1" in
         fi
         ;;
     setup)
-        echo "📝 تنظیم ربات یوتیوب..."
+        echo "📝 Setting up YouTube Bot..."
         
         if [ ! -f /opt/youtube_bot/.env ]; then
             cp /opt/youtube_bot/.env.example /opt/youtube_bot/.env
             echo ""
-            echo "📋 فایل .env در /opt/youtube_bot/.env ایجاد شد"
+            echo "📋 Created .env file at /opt/youtube_bot/.env"
             echo ""
-            echo "🔑 مراحل دریافت توکن ربات:"
-            echo "1. تلگرام را باز کنید"
-            echo "2. @BotFather را جستجو کنید"
-            echo "3. /newbot را ارسال کنید"
-            echo "4. نام ربات را انتخاب کنید (مثال: YouTube Downloader)"
-            echo "5. یوزرنیم را انتخاب کنید (باید با 'bot' پایان یابد، مثال: MyYouTubeDLBot)"
-            echo "6. توکن را کپی کنید (مشابه: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
+            echo "🔑 Follow these steps to get BOT_TOKEN:"
+            echo "1. Open Telegram"
+            echo "2. Search for @BotFather"
+            echo "3. Send /newbot"
+            echo "4. Choose bot name (e.g., YouTube Downloader)"
+            echo "5. Choose username (must end with 'bot', e.g., MyYouTubeDLBot)"
+            echo "6. Copy the token (looks like: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
             echo ""
-            echo "✏️ ویرایش فایل تنظیمات:"
+            echo "✏️ Edit config file:"
             echo "   nano /opt/youtube_bot/.env"
             echo ""
-            echo "📁 یا از دستور زیر استفاده کنید:"
-            echo "   youtube-bot config"
+            echo "📁 Or use: youtube-bot config"
         else
-            echo "✅ فایل .env از قبل وجود دارد"
-            echo "✏️ ویرایش: youtube-bot config"
+            echo "✅ .env file already exists"
+            echo "✏️ Edit it: youtube-bot config"
         fi
         ;;
     config)
         nano /opt/youtube_bot/.env
         ;;
     update)
-        echo "🔄 آپدیت ربات یوتیوب..."
-        echo "آپدیت پکیج‌های پایتون..."
+        echo "🔄 Updating YouTube Bot..."
+        echo "Updating Python packages..."
         pip3 install --upgrade pip python-telegram-bot yt-dlp
         
-        echo "آپدیت yt-dlp..."
+        echo "Updating yt-dlp..."
         yt-dlp -U
         
-        echo "راه‌اندازی مجدد ربات..."
+        echo "Restarting bot..."
         systemctl restart youtube-bot
         
-        echo "✅ ربات با موفقیت آپدیت شد"
+        echo "✅ Bot updated successfully"
         ;;
     test)
-        echo "🧪 تست نصب ربات یوتیوب..."
+        echo "🧪 Testing YouTube Bot installation..."
         echo ""
         
-        echo "1. تست پکیج‌های پایتون..."
-        python3 -c "import telegram, yt_dlp, json; print('✅ پکیج‌های پایتون OK')"
+        echo "1. Testing Python packages..."
+        python3 -c "import telegram, yt_dlp, json; print('✅ Python packages OK')"
         
         echo ""
-        echo "2. تست yt-dlp..."
+        echo "2. Testing yt-dlp..."
         yt-dlp --version
         
         echo ""
-        echo "3. تست FFmpeg..."
+        echo "3. Testing FFmpeg..."
         ffmpeg -version | head -1
         
         echo ""
-        echo "4. تست سرویس..."
-        systemctl is-active youtube-bot &>/dev/null && echo "✅ سرویس در حال اجراست" || echo "⚠️ سرویس در حال اجرا نیست"
+        echo "4. Testing service..."
+        systemctl is-active youtube-bot &>/dev/null && echo "✅ Service is running" || echo "⚠️ Service is not running"
         
         echo ""
-        echo "5. تست دایرکتوری‌ها..."
+        echo "5. Testing directories..."
         ls -la /opt/youtube_bot/
         
         echo ""
-        echo "✅ تمام تست‌ها تکمیل شد"
+        echo "✅ All tests completed"
         ;;
     clean)
-        echo "🧹 پاک کردن دانلودها..."
+        echo "🧹 Cleaning downloads..."
         rm -rf /opt/youtube_bot/downloads/*
         rm -rf /opt/youtube_bot/temp/*
-        echo "✅ دانلودها و فایل‌های موقت پاک شدند"
+        echo "✅ Cleaned downloads and temp"
         ;;
     backup)
-        echo "💾 تهیه نسخه پشتیبان از ربات..."
+        echo "💾 Backing up bot..."
         BACKUP_DIR="/opt/youtube_bot_backup_\$(date +%Y%m%d_%H%M%S)"
         mkdir -p "\$BACKUP_DIR"
         cp -r /opt/youtube_bot/* "\$BACKUP_DIR"/
-        echo "✅ نسخه پشتیبان ایجاد شد: \$BACKUP_DIR"
+        echo "✅ Backup created: \$BACKUP_DIR"
         ;;
     stats)
-        echo "📊 آمار ربات:"
+        echo "📊 Bot Statistics:"
         echo ""
-        echo "پوشه دانلود:"
+        echo "Downloads folder:"
         du -sh /opt/youtube_bot/downloads
         echo ""
-        echo "سایز فایل لاگ:"
-        du -sh /opt/youtube_bot/logs/* 2>/dev/null || echo "هنوز لاگی وجود ندارد"
+        echo "Log file size:"
+        du -sh /opt/youtube_bot/logs/* 2>/dev/null || echo "No logs yet"
         echo ""
-        echo "وضعیت سرویس:"
+        echo "Service status:"
         systemctl status youtube-bot --no-pager -l | grep -A 3 "Active:"
         ;;
     *)
-        echo "🤖 ربات دانلودکننده یوتیوب پیشرفته"
-        echo "نسخه: 2.1 | رفع مشکل URL"
+        echo "🤖 Advanced YouTube Downloader Bot"
+        echo "Version: 2.1 | URL Encoding Fix"
         echo ""
-        echo "استفاده: \$0 {start|stop|restart|status|logs|setup|config|update|test|clean|backup|stats}"
+        echo "Usage: \$0 {start|stop|restart|status|logs|setup|config|update|test|clean|backup|stats}"
         echo ""
-        echo "دستورات:"
-        echo "  start     - شروع ربات"
-        echo "  stop      - توقف ربات"
-        echo "  restart   - راه‌اندازی مجدد"
-        echo "  status    - بررسی وضعیت"
-        echo "  logs      - مشاهده لاگ‌ها (برای دنبال کردن -f اضافه کنید)"
-        echo "  setup     - تنظیم اولیه"
-        echo "  config    - ویرایش تنظیمات"
-        echo "  update    - آپدیت ربات و پکیج‌ها"
-        echo "  test      - اجرای تست‌ها"
-        echo "  clean     - پاک کردن دانلودها"
-        echo "  backup    - تهیه نسخه پشتیبان"
-        echo "  stats     - نمایش آمار"
+        echo "Commands:"
+        echo "  start     - Start bot"
+        echo "  stop      - Stop bot"
+        echo "  restart   - Restart bot"
+        echo "  status    - Check status"
+        echo "  logs      - View logs (add -f to follow)"
+        echo "  setup     - First-time setup"
+        echo "  config    - Edit configuration"
+        echo "  update    - Update bot and packages"
+        echo "  test      - Run tests"
+        echo "  clean     - Clean downloads"
+        echo "  backup    - Create backup"
+        echo "  stats     - Show statistics"
         echo ""
-        echo "راه‌اندازی سریع:"
+        echo "Quick Start:"
         echo "  1. youtube-bot setup"
-        echo "  2. youtube-bot config  (توکن خود را اضافه کنید)"
+        echo "  2. youtube-bot config  (add your token)"
         echo "  3. youtube-bot start"
         echo "  4. youtube-bot logs -f"
         echo ""
-        echo "ویژگی‌ها:"
-        echo "  • انتخاب کیفیت با نمایش حجم فایل"
-        echo "  • پشتیبانی از فرمت‌های مختلف"
-        echo "  • استخراج صدا"
-        echo "  • بهترین کیفیت به صورت خودکار"
-        echo "  • رفع مشکل encoding URL"
+        echo "Features:"
+        echo "  • Quality selection with file sizes"
+        echo "  • Multiple format support"
+        echo "  • Audio extraction"
+        echo "  • Best quality auto-select"
+        echo "  • Fixed URL encoding issue"
         ;;
 esac
 CONTROLEOF
@@ -1325,68 +1324,68 @@ TESTEOF
     print_success "Test script created"
 }
 
-# Show completion message
+# Show completion message with English text
 show_completion() {
     echo ""
     echo -e "${GREEN}=============================================="
-    echo "   نصب ربات یوتیوب با موفقیت کامل شد!"
+    echo "   YOUTUBE BOT INSTALLATION COMPLETE!"
     echo "=============================================="
     echo -e "${NC}"
     
-    echo -e "\n${YELLOW}🚀 مراحل بعدی:${NC}"
-    echo "1. ${GREEN}تنظیم ربات:${NC}"
+    echo -e "\n${YELLOW}🚀 NEXT STEPS:${NC}"
+    echo "1. ${GREEN}Setup bot:${NC}"
     echo "   youtube-bot setup"
     echo ""
-    echo "2. ${GREEN}دریافت توکن ربات از @BotFather:${NC}"
-    echo "   • تلگرام را باز کنید"
-    echo "   • @BotFather را جستجو کنید"
-    echo "   • /newbot را ارسال کنید"
-    echo "   • نام و یوزرنیم را انتخاب کنید"
-    echo "   • توکن را کپی کنید (مثال: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
+    echo "2. ${GREEN}Get Bot Token from @BotFather:${NC}"
+    echo "   • Open Telegram"
+    echo "   • Search for @BotFather"
+    echo "   • Send /newbot"
+    echo "   • Choose name and username"
+    echo "   • Copy token (looks like: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
     echo ""
-    echo "3. ${GREEN}تنظیم ربات:${NC}"
+    echo "3. ${GREEN}Configure bot:${NC}"
     echo "   youtube-bot config"
-    echo "   • توکن خود را در فایل اضافه کنید"
+    echo "   • Add your BOT_TOKEN"
     echo ""
-    echo "4. ${GREEN}تست نصب:${NC}"
+    echo "4. ${GREEN}Test installation:${NC}"
     echo "   youtube-bot test"
     echo ""
-    echo "5. ${GREEN}شروع ربات:${NC}"
+    echo "5. ${GREEN}Start bot:${NC}"
     echo "   youtube-bot start"
     echo ""
-    echo "6. ${GREEN}مشاهده لاگ‌ها:${NC}"
+    echo "6. ${GREEN}Monitor logs:${NC}"
     echo "   youtube-bot logs -f"
     echo ""
     
-    echo -e "${YELLOW}🎬 ویژگی‌های جدید:${NC}"
-    echo "• ${GREEN}رفع مشکل URL${NC} - مشکل 'https is not a valid URL' حل شد"
-    echo "• ${GREEN}انتخاب کیفیت${NC} - نمایش تمام فرمت‌ها با حجم"
-    echo "• ${GREEN}صفحه‌بندی${NC} - برای ویدیوهای با فرمت‌های زیاد"
-    echo "• ${GREEN}رابط فارسی${NC} - پیام‌ها به فارسی"
-    echo "• ${GREEN}خطایابی پیشرفته${NC} - لاگ‌گیری کامل"
+    echo -e "${YELLOW}🎬 NEW FEATURES:${NC}"
+    echo "• ${GREEN}Fixed URL issue${NC} - 'https is not a valid URL' problem resolved"
+    echo "• ${GREEN}Quality selection${NC} - Show all formats with file sizes"
+    echo "• ${GREEN}Pagination${NC} - For videos with many formats"
+    echo "• ${GREEN}English interface${NC} - All messages in English"
+    echo "• ${GREEN}Advanced logging${NC} - Complete error logging"
     echo ""
     
-    echo -e "${YELLOW}⚡ راه‌اندازی سریع:${NC}"
-    echo "1. لینک یوتیوب را برای ربات بفرستید"
-    echo "2. ربات تمام کیفیت‌های موجود را با حجم نشان می‌دهد"
-    echo "3. کیفیت مورد نظر را انتخاب کنید"
-    echo "4. ربات فایل را دانلود و ارسال می‌کند"
+    echo -e "${YELLOW}⚡ QUICK START:${NC}"
+    echo "1. Send YouTube link to bot"
+    echo "2. Bot shows all available formats with sizes"
+    echo "3. Select your preferred quality"
+    echo "4. Bot downloads and sends the file"
     echo ""
     
-    echo -e "${GREEN}✅ ربات آماده است! با 'youtube-bot start' شروع کنید${NC}"
+    echo -e "${GREEN}✅ Bot is ready! Start with 'youtube-bot start'${NC}"
     echo ""
     
-    echo -e "${CYAN}📞 پشتیبانی:${NC}"
-    echo "مشاهده لاگ: youtube-bot logs"
-    echo "بررسی وضعیت: youtube-bot status"
-    echo "آپدیت ربات: youtube-bot update"
-    echo "پاک کردن دانلودها: youtube-bot clean"
+    echo -e "${CYAN}📞 SUPPORT:${NC}"
+    echo "View logs: youtube-bot logs"
+    echo "Check status: youtube-bot status"
+    echo "Update bot: youtube-bot update"
+    echo "Clean downloads: youtube-bot clean"
 }
 
 # Main installation
 main() {
     show_logo
-    print_info "شروع نصب ربات یوتیوب..."
+    print_info "Starting YouTube Bot installation..."
     
     install_deps
     install_python_packages
