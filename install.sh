@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Telegram YouTube Video Downloader Bot Installer
-# Advanced Version with Quality Selection
+# Fixed URL Encoding Version
 
 set -e
 
@@ -18,8 +18,8 @@ show_logo() {
     clear
     echo -e "${BLUE}"
     echo "=============================================="
-    echo "   ADVANCED YOUTUBE DOWNLOADER BOT"
-    echo "       WITH QUALITY SELECTION"
+    echo "   YOUTUBE DOWNLOADER BOT - FIXED VERSION"
+    echo "        URL ENCODING ISSUE RESOLVED"
     echo "=============================================="
     echo -e "${NC}"
 }
@@ -36,11 +36,11 @@ install_deps() {
     
     if command -v apt &> /dev/null; then
         apt update -y
-        apt install -y python3 python3-pip python3-venv git ffmpeg curl wget nano jq mediainfo
+        apt install -y python3 python3-pip python3-venv git ffmpeg curl wget nano jq
     elif command -v yum &> /dev/null; then
-        yum install -y python3 python3-pip git ffmpeg curl wget nano jq mediainfo
+        yum install -y python3 python3-pip git ffmpeg curl wget nano jq
     elif command -v dnf &> /dev/null; then
-        dnf install -y python3 python3-pip git ffmpeg curl wget nano jq mediainfo
+        dnf install -y python3 python3-pip git ffmpeg curl wget nano jq
     else
         print_error "Unsupported OS"
         exit 1
@@ -54,7 +54,7 @@ install_python_packages() {
     print_info "Installing Python packages..."
     
     pip3 install --upgrade pip
-    pip3 install python-telegram-bot yt-dlp requests pillow
+    pip3 install python-telegram-bot==20.7 yt-dlp requests
     
     print_success "Python packages installed"
 }
@@ -73,14 +73,14 @@ create_bot_dir() {
     print_success "Directory created: /opt/youtube_bot"
 }
 
-# Create advanced bot.py script with quality selection
+# Create fixed bot.py script
 create_bot_script() {
-    print_info "Creating Advanced YouTube bot script..."
+    print_info "Creating fixed bot script..."
     
     cat > /opt/youtube_bot/bot.py << 'BOTEOF'
 #!/usr/bin/env python3
 """
-Advanced Telegram YouTube Downloader Bot with Quality Selection
+Fixed YouTube Downloader Bot with URL Encoding Fix
 """
 
 import os
@@ -89,6 +89,7 @@ import logging
 import subprocess
 import re
 import asyncio
+import urllib.parse
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
@@ -108,27 +109,29 @@ logger = logging.getLogger(__name__)
 # Bot token
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
 
-# User data storage (in production use a database)
+# User data storage
 user_sessions: Dict[int, Dict] = {}
 
 def is_youtube_url(url: str) -> bool:
     """Check if URL is from YouTube"""
     patterns = [
-        r'youtube\.com/watch\?v=',
-        r'youtu\.be/',
-        r'youtube\.com/shorts/',
-        r'youtube\.com/embed/',
-        r'youtube\.com/live/'
+        r'(https?://)?(www\.)?youtube\.com/watch\?v=',
+        r'(https?://)?(www\.)?youtu\.be/',
+        r'(https?://)?(www\.)?youtube\.com/shorts/',
+        r'(https?://)?(www\.)?youtube\.com/embed/',
+        r'(https?://)?(www\.)?youtube\.com/live/'
     ]
     
-    url_lower = url.lower()
     for pattern in patterns:
-        if re.search(pattern, url_lower):
+        if re.search(pattern, url.lower()):
             return True
     return False
 
 def format_size(bytes_size: int) -> str:
     """Format bytes to human readable size"""
+    if bytes_size == 0:
+        return "N/A"
+    
     for unit in ['B', 'KB', 'MB', 'GB']:
         if bytes_size < 1024.0:
             return f"{bytes_size:.1f} {unit}"
@@ -141,6 +144,10 @@ def get_video_formats(url: str) -> Tuple[List[Dict], Dict]:
     Returns: (formats_list, video_info)
     """
     try:
+        # Clean and validate URL
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
         # Get video info using yt-dlp
         cmd = [
             'yt-dlp',
@@ -150,10 +157,11 @@ def get_video_formats(url: str) -> Tuple[List[Dict], Dict]:
             url
         ]
         
+        logger.info(f"Getting formats for URL: {url[:100]}...")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         
         if result.returncode != 0:
-            logger.error(f"Failed to get video info: {result.stderr}")
+            logger.error(f"Failed to get video info: {result.stderr[:200]}")
             return [], {}
         
         video_info = json.loads(result.stdout)
@@ -167,7 +175,11 @@ def get_video_formats(url: str) -> Tuple[List[Dict], Dict]:
             acodec = fmt.get('acodec', 'none')
             
             # Skip storyboard formats
-            if 'storyboard' in format_id.lower():
+            if 'storyboard' in str(format_id).lower():
+                continue
+            
+            # Skip m3u8 formats
+            if fmt.get('protocol', '') == 'm3u8_native':
                 continue
             
             # Calculate file size
@@ -179,35 +191,55 @@ def get_video_formats(url: str) -> Tuple[List[Dict], Dict]:
             elif filesize_approx:
                 size = filesize_approx
             else:
-                size = 0
+                # Estimate size based on duration and bitrate
+                duration = video_info.get('duration', 0)
+                tbr = fmt.get('tbr', 0)
+                if duration and tbr:
+                    size = (tbr * 1000 * duration) / 8  # Convert to bytes
+                else:
+                    size = 0
             
             # Determine format type
             if vcodec != 'none' and acodec != 'none':
                 format_type = 'video+audio'
+                icon = '🎬'
             elif vcodec != 'none':
                 format_type = 'video'
+                icon = '📹'
             elif acodec != 'none':
                 format_type = 'audio'
+                icon = '🎵'
             else:
                 format_type = 'unknown'
+                icon = '📄'
             
             # Get resolution
-            height = fmt.get('height', 0)
-            width = fmt.get('width', 0)
+            height = fmt.get('height')
+            width = fmt.get('width')
             
-            if height:
+            if height and width:
+                resolution = f"{width}x{height}"
+            elif height:
                 resolution = f"{height}p"
-                if width:
-                    resolution = f"{width}x{height}"
             else:
                 resolution = fmt.get('format_note', 'Audio')
             
             # Get fps
-            fps = fmt.get('fps', 0)
+            fps = fmt.get('fps')
             fps_str = f"{int(fps)}fps" if fps else ""
             
-            # Get quality
-            quality = fmt.get('quality', 0)
+            # Get bitrate
+            abr = fmt.get('abr', 0)
+            vbr = fmt.get('vbr', 0)
+            tbr = fmt.get('tbr', 0)
+            
+            bitrate = ''
+            if abr:
+                bitrate = f"{abr}k"
+            elif vbr:
+                bitrate = f"{vbr}k"
+            elif tbr:
+                bitrate = f"{tbr}k"
             
             format_data = {
                 'id': format_id,
@@ -218,26 +250,39 @@ def get_video_formats(url: str) -> Tuple[List[Dict], Dict]:
                 'acodec': acodec,
                 'size': size,
                 'type': format_type,
+                'icon': icon,
                 'format_note': fmt.get('format_note', ''),
-                'quality': quality,
-                'filesize': size
+                'bitrate': bitrate,
+                'height': height,
+                'width': width
             }
             
             formats.append(format_data)
         
-        # Sort formats
-        formats.sort(key=lambda x: (
-            0 if x['type'] == 'video+audio' else 
-            1 if x['type'] == 'video' else 
-            2 if x['type'] == 'audio' else 3,
-            -x.get('height', 0) if isinstance(x.get('height'), (int, float)) else 0,
-            -x.get('quality', 0)
-        ))
+        # Remove duplicates (keep highest quality)
+        unique_formats = {}
+        for fmt in formats:
+            key = (fmt['resolution'], fmt['ext'], fmt['type'])
+            if key not in unique_formats or fmt['size'] > unique_formats[key]['size']:
+                unique_formats[key] = fmt
+        
+        formats = list(unique_formats.values())
+        
+        # Sort formats by quality
+        def sort_key(fmt):
+            # Priority: video+audio > video > audio
+            type_score = {'video+audio': 0, 'video': 1, 'audio': 2}.get(fmt['type'], 3)
+            height = fmt.get('height', 0) or 0
+            width = fmt.get('width', 0) or 0
+            size = fmt.get('size', 0) or 0
+            return (type_score, -height, -width, -size)
+        
+        formats.sort(key=sort_key)
         
         return formats, video_info
         
     except Exception as e:
-        logger.error(f"Error getting formats: {e}")
+        logger.error(f"Error getting formats: {str(e)}")
         return [], {}
 
 def create_quality_keyboard(formats: List[Dict], url: str, page: int = 0) -> InlineKeyboardMarkup:
@@ -248,54 +293,56 @@ def create_quality_keyboard(formats: List[Dict], url: str, page: int = 0) -> Inl
     
     keyboard = []
     
+    # Encode URL for callback data
+    encoded_url = urllib.parse.quote(url, safe='')
+    
     # Add formats for current page
     for fmt in formats[start_idx:end_idx]:
         format_id = fmt['id']
         resolution = fmt['resolution']
         ext = fmt['ext'].upper()
-        size = format_size(fmt['size']) if fmt['size'] else "N/A"
+        size = format_size(fmt['size'])
+        icon = fmt['icon']
         format_type = fmt['type']
+        bitrate = fmt['bitrate']
         
         # Create button text
-        if format_type == 'video+audio':
-            icon = '🎬'
-        elif format_type == 'video':
-            icon = '📹'
-        elif format_type == 'audio':
-            icon = '🎵'
-        else:
-            icon = '📄'
+        button_text = f"{icon} {resolution}"
         
-        button_text = f"{icon} {resolution} ({ext}) - {size}"
+        if bitrate and format_type == 'audio':
+            button_text += f" ({bitrate})"
+        
+        button_text += f" - {size}"
+        
+        if fmt['fps'] and format_type != 'audio':
+            button_text += f" [{fmt['fps']}]"
         
         # Truncate if too long
-        if len(button_text) > 50:
-            button_text = button_text[:47] + "..."
+        if len(button_text) > 40:
+            button_text = button_text[:37] + "..."
         
-        keyboard.append([InlineKeyboardButton(
-            button_text,
-            callback_data=f"dl:{format_id}:{url}:{page}"
-        )])
+        callback_data = f"dl:{format_id}:{encoded_url}"
+        keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
     
     # Add navigation buttons if needed
     nav_buttons = []
     
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"page:{page-1}:{url}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"nav:{page-1}:{encoded_url}"))
     
     if end_idx < len(formats):
-        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"page:{page+1}:{url}"))
+        nav_buttons.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"nav:{page+1}:{encoded_url}"))
     
     if nav_buttons:
         keyboard.append(nav_buttons)
     
-    # Add best quality options
+    # Add quick action buttons
     keyboard.append([
-        InlineKeyboardButton("🎯 Best Video+Audio", callback_data=f"best:{url}"),
-        InlineKeyboardButton("🎵 Best Audio Only", callback_data=f"audio:{url}")
+        InlineKeyboardButton("🎯 بهترین کیفیت", callback_data=f"best:{encoded_url}"),
+        InlineKeyboardButton("🎵 فقط صدا", callback_data=f"audio:{encoded_url}")
     ])
     
-    keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="cancel")])
+    keyboard.append([InlineKeyboardButton("❌ انصراف", callback_data="cancel")])
     
     return InlineKeyboardMarkup(keyboard)
 
@@ -304,37 +351,37 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
     text = f"""
-🎬 *Advanced YouTube Downloader Bot*
+🎬 *ربات دانلود یوتیوب*
 
-👋 Hello {user.first_name}!
+👋 سلام {user.first_name}!
 
-I can download videos from YouTube with *quality selection*.
+من می‌توانم ویدیوهای یوتیوب را با *انتخاب کیفیت* دانلود کنم.
 
-✨ *Features:*
-• Download in *multiple qualities*
-• See *file sizes* before download
-• Audio extraction
-• Fast and reliable
+✨ *ویژگی‌ها:*
+• دانلود با *کیفیت‌های مختلف*
+• نمایش *حجم فایل* قبل از دانلود
+• استخراج صدا
+• سریع و قابل اعتماد
 
-📌 *How to use:*
-1. Send me a YouTube link
-2. I'll show available qualities
-3. Select your preferred quality
-4. Receive your file
+📌 *نحوه استفاده:*
+1. لینک یوتیوب را برای من بفرستید
+2. من کیفیت‌های موجود را نشان می‌دهم
+3. کیفیت مورد نظر را انتخاب کنید
+4. فایل را دریافت کنید
 
-🔗 *Supported URLs:*
+🔗 *لینک‌های پشتیبانی شده:*
 • youtube.com/watch?v=...
 • youtu.be/...
 • youtube.com/shorts/...
 • youtube.com/live/...
 
-⚡ *Commands:*
-/start - Show this message
-/help - Help information
-/formats <url> - Show formats directly
+⚡ *دستورات:*
+/start - نمایش این پیام
+/help - راهنمایی
+/formats <لینک> - نمایش فرمت‌ها
 
-📊 *Quality Selection:*
-I'll show you *all available formats* with their *file sizes*.
+📊 *انتخاب کیفیت:*
+من *تمام فرمت‌های موجود* را با *حجم فایل* نشان می‌دهم.
     """
     
     await update.message.reply_text(text, parse_mode='Markdown')
@@ -342,37 +389,37 @@ I'll show you *all available formats* with their *file sizes*.
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /help command"""
     text = """
-🤖 *Advanced YouTube Bot Help*
+🤖 *راهنمای ربات یوتیوب*
 
-📌 *How to download:*
-1. Send a YouTube link
-2. I'll analyze available formats
-3. Choose quality from list
-4. Wait for download
-5. Receive your file
+📌 *نحوه دانلود:*
+1. یک لینک یوتیوب بفرستید
+2. من فرمت‌های موجود را بررسی می‌کنم
+3. کیفیت را از لیست انتخاب کنید
+4. منتظر دانلود بمانید
+5. فایل را دریافت کنید
 
-🎯 *Format Types:*
-• 🎬 Video+Audio (complete)
-• 📹 Video only
-• 🎵 Audio only
+🎯 *انواع فرمت:*
+• 🎬 ویدیو+صدا (کامل)
+• 📹 فقط ویدیو
+• 🎵 فقط صدا
 
-📊 *File Sizes:*
-All formats show estimated file size
+📊 *حجم فایل:*
+همه فرمت‌ها حجم تخمینی را نشان می‌دهند
 
-⚡ *Quick Commands:*
-/formats <url> - Show formats directly
-/audio <url> - Download best audio
-/video <url> - Download best video
+⚡ *دستورات سریع:*
+/formats <لینک> - نمایش فرمت‌ها مستقیم
+/audio <لینک> - دانلود بهترین صدا
+/video <لینک> - دانلود بهترین ویدیو
 
-⚠️ *Limits:*
-• Max file size: 2GB (Telegram limit)
-• Long videos may take time
-• Some formats may fail
+⚠️ *محدودیت‌ها:*
+• حداکثر حجم فایل: ۲ گیگابایت (محدودیت تلگرام)
+• ویدیوهای طولانی ممکن است زمان‌بر باشند
+• برخی فرمت‌ها ممکن است ناموفق باشند
 
-💡 *Tips:*
-• 720p/480p for good quality/size balance
-• MP4 for best compatibility
-• MP3 for audio
+💡 *نکات:*
+• 720p/480p برای تعادل کیفیت/حجم مناسب‌اند
+• MP4 برای بهترین سازگاری
+• MP3 برای صدا
     """
     
     await update.message.reply_text(text, parse_mode='Markdown')
@@ -380,29 +427,33 @@ All formats show estimated file size
 async def formats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle /formats command"""
     if not context.args:
-        await update.message.reply_text("Usage: /formats <youtube-url>")
+        await update.message.reply_text("❌ استفاده: /formats <لینک-یوتیوب>")
         return
     
-    url = context.args[0]
+    url = ' '.join(context.args)
     await show_formats(update, context, url)
 
 async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: str):
     """Show available formats for a URL"""
     if not is_youtube_url(url):
-        await update.message.reply_text("❌ Please provide a valid YouTube URL")
+        await update.message.reply_text("❌ لطفاً یک لینک معتبر یوتیوب ارسال کنید")
         return
     
     message = None
     if update.message:
-        message = await update.message.reply_text("🔍 Analyzing video formats...")
+        message = await update.message.reply_text("🔍 در حال بررسی فرمت‌های ویدیو...")
     elif update.callback_query:
-        message = await update.callback_query.message.reply_text("🔍 Analyzing video formats...")
+        message = await update.callback_query.message.reply_text("🔍 در حال بررسی فرمت‌های ویدیو...")
     
     try:
+        # Clean URL
+        if not url.startswith(('http://', 'https://')):
+            url = 'https://' + url
+        
         formats, video_info = get_video_formats(url)
         
         if not formats:
-            await message.edit_text("❌ No formats found or invalid URL")
+            await message.edit_text("❌ فرمتی پیدا نشد یا لینک نامعتبر است")
             return
         
         # Store formats in user session
@@ -414,18 +465,22 @@ async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
         }
         
         # Create info message
-        title = video_info.get('title', 'Unknown')
+        title = video_info.get('title', 'بدون عنوان')[:100]
         duration = video_info.get('duration', 0)
-        duration_str = f"{duration // 60}:{duration % 60:02d}" if duration else "Unknown"
+        duration_str = f"{duration // 60}:{duration % 60:02d}" if duration else "نامشخص"
+        uploader = video_info.get('uploader', 'نامشخص')[:50]
+        view_count = video_info.get('view_count', 0)
         
         info_text = f"""
-📺 *Video Analysis Complete!*
+📺 *بررسی ویدیو کامل شد!*
 
-🎬 *Title:* {title[:100]}
-⏱️ *Duration:* {duration_str}
-🔢 *Formats Available:* {len(formats)}
+🎬 *عنوان:* {title}
+👤 *آپلودکننده:* {uploader}
+👁️ *تعداد بازدید:* {view_count:,}
+⏱️ *مدت زمان:* {duration_str}
+🔢 *تعداد فرمت‌ها:* {len(formats)}
 
-*Select a quality from below:*
+*کیفیت مورد نظر را انتخاب کنید:*
         """
         
         # Create keyboard
@@ -434,8 +489,8 @@ async def show_formats(update: Update, context: ContextTypes.DEFAULT_TYPE, url: 
         await message.edit_text(info_text, parse_mode='Markdown', reply_markup=keyboard)
         
     except Exception as e:
-        logger.error(f"Error in show_formats: {e}")
-        await message.edit_text(f"❌ Error analyzing video: {str(e)[:200]}")
+        logger.error(f"خطا در show_formats: {e}")
+        await message.edit_text(f"❌ خطا در بررسی ویدیو: {str(e)[:200]}")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle incoming messages"""
@@ -443,7 +498,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     url = message.text.strip()
     
     if not is_youtube_url(url):
-        await message.reply_text("❌ Please send a valid YouTube URL")
+        await message.reply_text("❌ لطفاً یک لینک معتبر یوتیوب ارسال کنید")
         return
     
     await show_formats(update, context, url)
@@ -456,42 +511,65 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     callback_data = query.data
     user_id = query.from_user.id
     
+    logger.info(f"Callback received: {callback_data[:100]}")
+    
     # Handle navigation
-    if callback_data.startswith('page:'):
-        _, page_str, url = callback_data.split(':', 2)
-        page = int(page_str)
-        
-        # Get formats from session or fetch again
-        if user_id in user_sessions and user_sessions[user_id]['url'] == url:
-            formats = user_sessions[user_id]['formats']
-        else:
+    if callback_data.startswith('nav:'):
+        try:
+            _, page_str, encoded_url = callback_data.split(':', 2)
+            page = int(page_str)
+            url = urllib.parse.unquote(encoded_url)
+            
+            # Get formats
             formats, _ = get_video_formats(url)
-        
-        keyboard = create_quality_keyboard(formats, url, page)
-        await query.edit_message_reply_markup(reply_markup=keyboard)
+            
+            if not formats:
+                await query.edit_message_text("❌ فرمت‌ها پیدا نشدند")
+                return
+            
+            keyboard = create_quality_keyboard(formats, url, page)
+            await query.edit_message_reply_markup(reply_markup=keyboard)
+        except Exception as e:
+            logger.error(f"Navigation error: {e}")
+            await query.edit_message_text("❌ خطا در ناوبری")
         return
     
     # Handle format selection
     elif callback_data.startswith('dl:'):
-        _, format_id, url, page_str = callback_data.split(':', 3)
-        await download_format(query, context, url, format_id)
+        try:
+            _, format_id, encoded_url = callback_data.split(':', 2)
+            url = urllib.parse.unquote(encoded_url)
+            await download_format(query, context, url, format_id)
+        except Exception as e:
+            logger.error(f"Format selection error: {e}")
+            await query.edit_message_text("❌ خطا در انتخاب فرمت")
         return
     
     # Handle best quality
     elif callback_data.startswith('best:'):
-        _, url = callback_data.split(':', 1)
-        await download_best(query, context, url)
+        try:
+            _, encoded_url = callback_data.split(':', 1)
+            url = urllib.parse.unquote(encoded_url)
+            await download_best(query, context, url)
+        except Exception as e:
+            logger.error(f"Best quality error: {e}")
+            await query.edit_message_text("❌ خطا در دانلود بهترین کیفیت")
         return
     
     # Handle audio only
     elif callback_data.startswith('audio:'):
-        _, url = callback_data.split(':', 1)
-        await download_audio(query, context, url)
+        try:
+            _, encoded_url = callback_data.split(':', 1)
+            url = urllib.parse.unquote(encoded_url)
+            await download_audio(query, context, url)
+        except Exception as e:
+            logger.error(f"Audio download error: {e}")
+            await query.edit_message_text("❌ خطا در دانلود صدا")
         return
     
     # Handle cancel
     elif callback_data == 'cancel':
-        await query.edit_message_text("❌ Download cancelled")
+        await query.edit_message_text("❌ دانلغو شد")
         return
 
 async def download_format(query, context, url: str, format_id: str):
@@ -500,7 +578,7 @@ async def download_format(query, context, url: str, format_id: str):
     message = query.message
     
     # Update message
-    await message.edit_text(f"⬇️ Downloading format {format_id}...")
+    await message.edit_text(f"⬇️ در حال دانلود فرمت {format_id}...")
     
     try:
         # Create download directory
@@ -514,11 +592,13 @@ async def download_format(query, context, url: str, format_id: str):
             '-f', format_id,
             '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
             '--no-warnings',
-            '--add-metadata',
+            '--no-check-certificate',
+            '--socket-timeout', '30',
+            '--retries', '3',
             url
         ]
         
-        logger.info(f"Downloading {url} with format {format_id}")
+        logger.info(f"Downloading {url[:100]}... with format {format_id}")
         
         # Start download
         process = await asyncio.create_subprocess_exec(
@@ -530,38 +610,75 @@ async def download_format(query, context, url: str, format_id: str):
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            error_msg = stderr.decode()[:200]
-            await message.edit_text(f"❌ Download failed: {error_msg}")
-            return
+            error_msg = stderr.decode()[:500]
+            logger.error(f"Download failed: {error_msg}")
+            
+            # Try alternative method
+            if "is not a valid URL" in error_msg:
+                await message.edit_text("🔄 در حال امتحان روش جایگزین...")
+                # Try with different format selection
+                cmd = [
+                    'yt-dlp',
+                    '-f', f'best[format_id={format_id}]',
+                    '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
+                    '--no-warnings',
+                    url
+                ]
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                
+                stdout, stderr = await process.communicate()
+                
+                if process.returncode != 0:
+                    await message.edit_text(f"❌ دانلود ناموفق: {stderr.decode()[:200]}")
+                    return
         
         # Find downloaded file
         downloaded_files = []
-        for ext in ['mp4', 'mkv', 'webm', 'mp3', 'm4a', 'flac', 'wav']:
-            file_path = f'/opt/youtube_bot/downloads/{filename}.{ext}'
-            if os.path.exists(file_path):
-                downloaded_files.append((file_path, ext))
+        for file in os.listdir('/opt/youtube_bot/downloads'):
+            if file.startswith(filename):
+                file_path = f'/opt/youtube_bot/downloads/{file}'
+                if os.path.exists(file_path):
+                    downloaded_files.append(file_path)
         
         if not downloaded_files:
-            await message.edit_text("❌ File not found after download")
+            # Check for any file with similar pattern
+            for file in os.listdir('/opt/youtube_bot/downloads'):
+                if str(user_id) in file:
+                    file_path = f'/opt/youtube_bot/downloads/{file}'
+                    downloaded_files.append(file_path)
+        
+        if not downloaded_files:
+            await message.edit_text("❌ فایل پس از دانلود پیدا نشد")
             return
         
-        file_path, ext = downloaded_files[0]
+        file_path = downloaded_files[0]
         file_size = os.path.getsize(file_path)
+        
+        # Check file size (Telegram limit: 2GB)
+        if file_size > 2000 * 1024 * 1024:
+            await message.edit_text("❌ حجم فایل بیشتر از 2GB است (محدودیت تلگرام)")
+            os.remove(file_path)
+            return
         
         # Send file based on type
         with open(file_path, 'rb') as f:
-            if ext in ['mp3', 'm4a', 'flac', 'wav']:
+            if file_path.endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg')):
                 await context.bot.send_audio(
                     chat_id=user_id,
                     audio=f,
-                    caption=f"✅ Downloaded ({format_size(file_size)})",
+                    caption=f"✅ دانلود شده ({format_size(file_size)})",
                     parse_mode='Markdown'
                 )
-            elif ext in ['mp4', 'mkv', 'webm']:
+            elif file_path.endswith(('.mp4', '.mkv', '.webm', '.mov', '.avi')):
                 await context.bot.send_video(
                     chat_id=user_id,
                     video=f,
-                    caption=f"✅ Downloaded ({format_size(file_size)})",
+                    caption=f"✅ دانلود شده ({format_size(file_size)})",
                     parse_mode='Markdown',
                     supports_streaming=True
                 )
@@ -569,24 +686,28 @@ async def download_format(query, context, url: str, format_id: str):
                 await context.bot.send_document(
                     chat_id=user_id,
                     document=f,
-                    caption=f"✅ Downloaded ({format_size(file_size)})",
+                    caption=f"✅ دانلود شده ({format_size(file_size)})",
                     parse_mode='Markdown'
                 )
         
         # Cleanup
-        os.remove(file_path)
-        await message.edit_text(f"✅ Download complete! ({format_size(file_size)})")
+        try:
+            os.remove(file_path)
+        except:
+            pass
+        
+        await message.edit_text(f"✅ دانلود کامل شد! ({format_size(file_size)})")
         
     except Exception as e:
-        logger.error(f"Download error: {e}")
-        await message.edit_text(f"❌ Download error: {str(e)[:200]}")
+        logger.error(f"Download error: {str(e)}")
+        await message.edit_text(f"❌ خطا در دانلود: {str(e)[:200]}")
 
 async def download_best(query, context, url: str):
     """Download best video+audio"""
     user_id = query.from_user.id
     message = query.message
     
-    await message.edit_text("🎯 Downloading best quality...")
+    await message.edit_text("🎯 در حال دانلود بهترین کیفیت...")
     
     try:
         # Create download directory
@@ -601,7 +722,7 @@ async def download_best(query, context, url: str):
             '--merge-output-format', 'mp4',
             '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
             '--no-warnings',
-            '--add-metadata',
+            '--no-check-certificate',
             url
         ]
         
@@ -614,39 +735,76 @@ async def download_best(query, context, url: str):
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            error_msg = stderr.decode()[:200]
-            await message.edit_text(f"❌ Download failed: {error_msg}")
-            return
+            error_msg = stderr.decode()[:500]
+            logger.error(f"Best quality download failed: {error_msg}")
+            
+            # Try simple best format
+            cmd = [
+                'yt-dlp',
+                '-f', 'best[ext=mp4]',
+                '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
+                '--no-warnings',
+                url
+            ]
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                await message.edit_text(f"❌ دانلود ناموفق: {stderr.decode()[:200]}")
+                return
         
         # Send file
         file_path = f'/opt/youtube_bot/downloads/{filename}.mp4'
+        if not os.path.exists(file_path):
+            # Find any file with that prefix
+            for file in os.listdir('/opt/youtube_bot/downloads'):
+                if file.startswith(filename):
+                    file_path = f'/opt/youtube_bot/downloads/{file}'
+                    break
+        
         if os.path.exists(file_path):
             file_size = os.path.getsize(file_path)
+            
+            # Check file size
+            if file_size > 2000 * 1024 * 1024:
+                await message.edit_text("❌ حجم فایل بیشتر از 2GB است")
+                os.remove(file_path)
+                return
             
             with open(file_path, 'rb') as f:
                 await context.bot.send_video(
                     chat_id=user_id,
                     video=f,
-                    caption=f"✅ Best quality downloaded ({format_size(file_size)})",
+                    caption=f"✅ بهترین کیفیت دانلود شده ({format_size(file_size)})",
                     parse_mode='Markdown',
                     supports_streaming=True
                 )
             
-            os.remove(file_path)
-            await message.edit_text(f"✅ Best quality downloaded! ({format_size(file_size)})")
+            try:
+                os.remove(file_path)
+            except:
+                pass
+            
+            await message.edit_text(f"✅ بهترین کیفیت دانلود شد! ({format_size(file_size)})")
         else:
-            await message.edit_text("❌ File not found after download")
+            await message.edit_text("❌ فایل پس از دانلود پیدا نشد")
         
     except Exception as e:
-        logger.error(f"Best quality download error: {e}")
-        await message.edit_text(f"❌ Download error: {str(e)[:200]}")
+        logger.error(f"Best quality download error: {str(e)}")
+        await message.edit_text(f"❌ خطا در دانلود: {str(e)[:200]}")
 
 async def download_audio(query, context, url: str):
     """Download audio only"""
     user_id = query.from_user.id
     message = query.message
     
-    await message.edit_text("🎵 Downloading audio...")
+    await message.edit_text("🎵 در حال دانلود صدا...")
     
     try:
         # Create download directory
@@ -664,6 +822,7 @@ async def download_audio(query, context, url: str):
             '--no-warnings',
             '--add-metadata',
             '--embed-thumbnail',
+            '--no-check-certificate',
             url
         ]
         
@@ -676,12 +835,40 @@ async def download_audio(query, context, url: str):
         stdout, stderr = await process.communicate()
         
         if process.returncode != 0:
-            error_msg = stderr.decode()[:200]
-            await message.edit_text(f"❌ Download failed: {error_msg}")
-            return
+            error_msg = stderr.decode()[:500]
+            logger.error(f"Audio download failed: {error_msg}")
+            
+            # Try m4a format
+            cmd = [
+                'yt-dlp',
+                '-f', 'bestaudio[ext=m4a]',
+                '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
+                '--no-warnings',
+                url
+            ]
+            
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                await message.edit_text(f"❌ دانلود ناموفق: {stderr.decode()[:200]}")
+                return
         
         # Send file
         file_path = f'/opt/youtube_bot/downloads/{filename}.mp3'
+        if not os.path.exists(file_path):
+            # Find any audio file
+            for ext in ['.mp3', '.m4a', '.opus', '.webm']:
+                test_path = f'/opt/youtube_bot/downloads/{filename}{ext}'
+                if os.path.exists(test_path):
+                    file_path = test_path
+                    break
+        
         if os.path.exists(file_path):
             file_size = os.path.getsize(file_path)
             
@@ -689,18 +876,22 @@ async def download_audio(query, context, url: str):
                 await context.bot.send_audio(
                     chat_id=user_id,
                     audio=f,
-                    caption=f"✅ Audio downloaded ({format_size(file_size)})",
+                    caption=f"✅ صدا دانلود شده ({format_size(file_size)})",
                     parse_mode='Markdown'
                 )
             
-            os.remove(file_path)
-            await message.edit_text(f"✅ Audio downloaded! ({format_size(file_size)})")
+            try:
+                os.remove(file_path)
+            except:
+                pass
+            
+            await message.edit_text(f"✅ صدا دانلود شد! ({format_size(file_size)})")
         else:
-            await message.edit_text("❌ File not found after download")
+            await message.edit_text("❌ فایل پس از دانلود پیدا نشد")
         
     except Exception as e:
-        logger.error(f"Audio download error: {e}")
-        await message.edit_text(f"❌ Download error: {str(e)[:200]}")
+        logger.error(f"Audio download error: {str(e)}")
+        await message.edit_text(f"❌ خطا در دانلود: {str(e)[:200]}")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle errors"""
@@ -708,17 +899,17 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     try:
         if update.callback_query:
-            await update.callback_query.message.reply_text("⚠️ An error occurred. Please try again.")
+            await update.callback_query.message.reply_text("⚠️ خطایی رخ داد. لطفاً دوباره تلاش کنید.")
         elif update.message:
-            await update.message.reply_text("⚠️ An error occurred. Please try again.")
+            await update.message.reply_text("⚠️ خطایی رخ داد. لطفاً دوباره تلاش کنید.")
     except:
         pass
 
 def main():
     """Main function"""
     if not BOT_TOKEN:
-        print("❌ ERROR: BOT_TOKEN not set")
-        print("Please add your bot token to /opt/youtube_bot/.env")
+        print("❌ خطا: BOT_TOKEN تنظیم نشده است")
+        print("لطفاً توکن ربات خود را در /opt/youtube_bot/.env اضافه کنید")
         exit(1)
     
     # Create application
@@ -728,58 +919,182 @@ def main():
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("formats", formats_command))
+    app.add_handler(CommandHandler("audio", download_audio_command))
+    app.add_handler(CommandHandler("video", download_video_command))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_error_handler(error_handler)
     
-    print("🤖 Advanced YouTube Bot starting...")
+    print("🤖 ربات یوتیوب در حال راه‌اندازی...")
     print(f"📅 {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("✅ Bot ready to receive YouTube links")
+    print("✅ ربات آماده دریافت لینک‌های یوتیوب است")
     
     app.run_polling()
+
+async def download_audio_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Command handler for /audio"""
+    if not context.args:
+        await update.message.reply_text("❌ استفاده: /audio <لینک-یوتیوب>")
+        return
+    
+    url = ' '.join(context.args)
+    if not is_youtube_url(url):
+        await update.message.reply_text("❌ لینک یوتیوب معتبر نیست")
+        return
+    
+    msg = await update.message.reply_text("🎵 در حال دانلود صدا...")
+    await download_audio_simple(update, context, url, msg)
+
+async def download_video_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Command handler for /video"""
+    if not context.args:
+        await update.message.reply_text("❌ استفاده: /video <لینک-یوتیوب>")
+        return
+    
+    url = ' '.join(context.args)
+    if not is_youtube_url(url):
+        await update.message.reply_text("❌ لینک یوتیوب معتبر نیست")
+        return
+    
+    msg = await update.message.reply_text("🎬 در حال دانلود ویدیو...")
+    await download_video_simple(update, context, url, msg)
+
+async def download_audio_simple(update, context, url: str, message):
+    """Simple audio download for command"""
+    user_id = update.effective_user.id
+    
+    try:
+        os.makedirs('/opt/youtube_bot/downloads', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{timestamp}_{user_id}"
+        
+        cmd = [
+            'yt-dlp',
+            '-f', 'bestaudio',
+            '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
+            '--extract-audio',
+            '--audio-format', 'mp3',
+            '--no-warnings',
+            url
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            await message.edit_text(f"❌ خطا: {stderr.decode()[:200]}")
+            return
+        
+        file_path = f'/opt/youtube_bot/downloads/{filename}.mp3'
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                await context.bot.send_audio(
+                    chat_id=user_id,
+                    audio=f,
+                    caption="✅ دانلود شده"
+                )
+            os.remove(file_path)
+            await message.edit_text("✅ دانلود کامل شد!")
+        else:
+            await message.edit_text("❌ فایل پیدا نشد")
+            
+    except Exception as e:
+        logger.error(f"Simple audio error: {e}")
+        await message.edit_text(f"❌ خطا: {str(e)[:200]}")
+
+async def download_video_simple(update, context, url: str, message):
+    """Simple video download for command"""
+    user_id = update.effective_user.id
+    
+    try:
+        os.makedirs('/opt/youtube_bot/downloads', exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"{timestamp}_{user_id}"
+        
+        cmd = [
+            'yt-dlp',
+            '-f', 'best[ext=mp4]',
+            '-o', f'/opt/youtube_bot/downloads/{filename}.%(ext)s',
+            '--no-warnings',
+            url
+        ]
+        
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            await message.edit_text(f"❌ خطا: {stderr.decode()[:200]}")
+            return
+        
+        file_path = f'/opt/youtube_bot/downloads/{filename}.mp4'
+        if os.path.exists(file_path):
+            with open(file_path, 'rb') as f:
+                await context.bot.send_video(
+                    chat_id=user_id,
+                    video=f,
+                    caption="✅ دانلود شده",
+                    supports_streaming=True
+                )
+            os.remove(file_path)
+            await message.edit_text("✅ دانلود کامل شد!")
+        else:
+            await message.edit_text("❌ فایل پیدا نشد")
+            
+    except Exception as e:
+        logger.error(f"Simple video error: {e}")
+        await message.edit_text(f"❌ خطا: {str(e)[:200]}")
 
 if __name__ == '__main__':
     main()
 BOTEOF
     
     chmod +x /opt/youtube_bot/bot.py
-    print_success "Advanced bot script created"
+    print_success "Fixed bot script created"
 }
 
-# Create enhanced environment file
+# Create environment file
 create_env_file() {
     print_info "Creating environment file..."
     
     cat > /opt/youtube_bot/.env.example << ENVEOF
-# Telegram Bot Token from @BotFather
-# Get it from: https://t.me/BotFather
-# Example: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
+# توکن ربات تلگرام از @BotFather
+# مثال: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ
 BOT_TOKEN=your_bot_token_here
 
-# Optional: Maximum file size in bytes (Telegram limit is 2GB)
+# حداکثر حجم فایل (بایت) - محدودیت تلگرام 2GB است
 MAX_FILE_SIZE=2000000000
 
-# Optional: Allowed user IDs (comma separated)
-# Leave empty to allow all users
+# شناسه کاربران مجاز (با کاما جدا شود)
+# خالی بگذارید تا همه کاربران مجاز باشند
 ALLOWED_USERS=
 
-# Optional: Download directory
+# پوشه دانلود
 DOWNLOAD_DIR=/opt/youtube_bot/downloads
 
-# Optional: Temp directory
+# پوشه موقت
 TEMP_DIR=/tmp/youtube_bot
 ENVEOF
     
     print_success "Environment file created"
 }
 
-# Create enhanced service file
+# Create service file
 create_service_file() {
     print_info "Creating systemd service..."
     
     cat > /etc/systemd/system/youtube-bot.service << SERVICEEOF
 [Unit]
-Description=Advanced YouTube Downloader Bot with Quality Selection
+Description=YouTube Downloader Bot with Quality Selection
 After=network.target
 Requires=network.target
 
@@ -798,7 +1113,6 @@ StandardError=journal
 
 # Security
 NoNewPrivileges=true
-ProtectSystem=strict
 ReadWritePaths=/opt/youtube_bot/downloads /opt/youtube_bot/logs /tmp
 PrivateTmp=true
 
@@ -810,9 +1124,9 @@ SERVICEEOF
     print_success "Service file created"
 }
 
-# Create enhanced control script
+# Create control script
 create_control_script() {
-    print_info "Creating enhanced control script..."
+    print_info "Creating control script..."
     
     cat > /usr/local/bin/youtube-bot << CONTROLEOF
 #!/bin/bash
@@ -820,22 +1134,22 @@ create_control_script() {
 case "\$1" in
     start)
         if [ ! -f /opt/youtube_bot/.env ]; then
-            echo "❌ Please setup bot first: youtube-bot setup"
+            echo "❌ لطفاً ابتدا ربات را تنظیم کنید: youtube-bot setup"
             exit 1
         fi
         
         systemctl start youtube-bot
-        echo "✅ YouTube Bot started"
-        echo "📋 Check status: youtube-bot status"
-        echo "📊 View logs: youtube-bot logs"
+        echo "✅ ربات یوتیوب شروع شد"
+        echo "📋 وضعیت: youtube-bot status"
+        echo "📊 لاگ‌ها: youtube-bot logs"
         ;;
     stop)
         systemctl stop youtube-bot
-        echo "🛑 Bot stopped"
+        echo "🛑 ربات متوقف شد"
         ;;
     restart)
         systemctl restart youtube-bot
-        echo "🔄 Bot restarted"
+        echo "🔄 ربات راه‌اندازی مجدد شد"
         ;;
     status)
         systemctl status youtube-bot --no-pager -l
@@ -848,128 +1162,130 @@ case "\$1" in
         fi
         ;;
     setup)
-        echo "📝 Setting up Advanced YouTube Bot..."
+        echo "📝 تنظیم ربات یوتیوب..."
         
         if [ ! -f /opt/youtube_bot/.env ]; then
             cp /opt/youtube_bot/.env.example /opt/youtube_bot/.env
             echo ""
-            echo "📋 Created .env file at /opt/youtube_bot/.env"
+            echo "📋 فایل .env در /opt/youtube_bot/.env ایجاد شد"
             echo ""
-            echo "🔑 Follow these steps to get BOT_TOKEN:"
-            echo "1. Open Telegram"
-            echo "2. Search for @BotFather"
-            echo "3. Send /newbot"
-            echo "4. Choose bot name (e.g., YouTube Downloader)"
-            echo "5. Choose username (must end with 'bot', e.g., MyYouTubeDLBot)"
-            echo "6. Copy the token (looks like: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
+            echo "🔑 مراحل دریافت توکن ربات:"
+            echo "1. تلگرام را باز کنید"
+            echo "2. @BotFather را جستجو کنید"
+            echo "3. /newbot را ارسال کنید"
+            echo "4. نام ربات را انتخاب کنید (مثال: YouTube Downloader)"
+            echo "5. یوزرنیم را انتخاب کنید (باید با 'bot' پایان یابد، مثال: MyYouTubeDLBot)"
+            echo "6. توکن را کپی کنید (مشابه: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
             echo ""
-            echo "✏️ Edit config file:"
+            echo "✏️ ویرایش فایل تنظیمات:"
             echo "   nano /opt/youtube_bot/.env"
             echo ""
-            echo "📁 Or use: youtube-bot config"
+            echo "📁 یا از دستور زیر استفاده کنید:"
+            echo "   youtube-bot config"
         else
-            echo "✅ .env file already exists"
-            echo "✏️ Edit it: youtube-bot config"
+            echo "✅ فایل .env از قبل وجود دارد"
+            echo "✏️ ویرایش: youtube-bot config"
         fi
         ;;
     config)
         nano /opt/youtube_bot/.env
         ;;
     update)
-        echo "🔄 Updating YouTube Bot..."
-        echo "Updating Python packages..."
+        echo "🔄 آپدیت ربات یوتیوب..."
+        echo "آپدیت پکیج‌های پایتون..."
         pip3 install --upgrade pip python-telegram-bot yt-dlp
         
-        echo "Updating yt-dlp..."
+        echo "آپدیت yt-dlp..."
         yt-dlp -U
         
-        echo "Restarting bot..."
+        echo "راه‌اندازی مجدد ربات..."
         systemctl restart youtube-bot
         
-        echo "✅ Bot updated successfully"
+        echo "✅ ربات با موفقیت آپدیت شد"
         ;;
     test)
-        echo "🧪 Testing YouTube Bot installation..."
+        echo "🧪 تست نصب ربات یوتیوب..."
         echo ""
         
-        echo "1. Testing Python packages..."
-        python3 -c "import telegram, yt_dlp, json; print('✅ Python packages OK')"
+        echo "1. تست پکیج‌های پایتون..."
+        python3 -c "import telegram, yt_dlp, json; print('✅ پکیج‌های پایتون OK')"
         
         echo ""
-        echo "2. Testing yt-dlp..."
+        echo "2. تست yt-dlp..."
         yt-dlp --version
         
         echo ""
-        echo "3. Testing FFmpeg..."
+        echo "3. تست FFmpeg..."
         ffmpeg -version | head -1
         
         echo ""
-        echo "4. Testing service..."
-        systemctl is-active youtube-bot &>/dev/null && echo "✅ Service is running" || echo "⚠️ Service is not running"
+        echo "4. تست سرویس..."
+        systemctl is-active youtube-bot &>/dev/null && echo "✅ سرویس در حال اجراست" || echo "⚠️ سرویس در حال اجرا نیست"
         
         echo ""
-        echo "5. Testing directories..."
+        echo "5. تست دایرکتوری‌ها..."
         ls -la /opt/youtube_bot/
         
         echo ""
-        echo "✅ All tests completed"
+        echo "✅ تمام تست‌ها تکمیل شد"
         ;;
     clean)
-        echo "🧹 Cleaning downloads..."
+        echo "🧹 پاک کردن دانلودها..."
         rm -rf /opt/youtube_bot/downloads/*
         rm -rf /opt/youtube_bot/temp/*
-        echo "✅ Cleaned downloads and temp"
+        echo "✅ دانلودها و فایل‌های موقت پاک شدند"
         ;;
     backup)
-        echo "💾 Backing up bot..."
+        echo "💾 تهیه نسخه پشتیبان از ربات..."
         BACKUP_DIR="/opt/youtube_bot_backup_\$(date +%Y%m%d_%H%M%S)"
         mkdir -p "\$BACKUP_DIR"
         cp -r /opt/youtube_bot/* "\$BACKUP_DIR"/
-        echo "✅ Backup created: \$BACKUP_DIR"
+        echo "✅ نسخه پشتیبان ایجاد شد: \$BACKUP_DIR"
         ;;
     stats)
-        echo "📊 Bot Statistics:"
+        echo "📊 آمار ربات:"
         echo ""
-        echo "Downloads folder:"
+        echo "پوشه دانلود:"
         du -sh /opt/youtube_bot/downloads
         echo ""
-        echo "Log file size:"
-        du -sh /opt/youtube_bot/logs/* 2>/dev/null || echo "No logs yet"
+        echo "سایز فایل لاگ:"
+        du -sh /opt/youtube_bot/logs/* 2>/dev/null || echo "هنوز لاگی وجود ندارد"
         echo ""
-        echo "Service status:"
+        echo "وضعیت سرویس:"
         systemctl status youtube-bot --no-pager -l | grep -A 3 "Active:"
         ;;
     *)
-        echo "🤖 Advanced YouTube Downloader Bot"
-        echo "Version: 2.0 | With Quality Selection"
+        echo "🤖 ربات دانلودکننده یوتیوب پیشرفته"
+        echo "نسخه: 2.1 | رفع مشکل URL"
         echo ""
-        echo "Usage: \$0 {start|stop|restart|status|logs|setup|config|update|test|clean|backup|stats}"
+        echo "استفاده: \$0 {start|stop|restart|status|logs|setup|config|update|test|clean|backup|stats}"
         echo ""
-        echo "Commands:"
-        echo "  start     - Start bot"
-        echo "  stop      - Stop bot"
-        echo "  restart   - Restart bot"
-        echo "  status    - Check status"
-        echo "  logs      - View logs (add -f to follow)"
-        echo "  setup     - First-time setup"
-        echo "  config    - Edit configuration"
-        echo "  update    - Update bot and packages"
-        echo "  test      - Run tests"
-        echo "  clean     - Clean downloads"
-        echo "  backup    - Create backup"
-        echo "  stats     - Show statistics"
+        echo "دستورات:"
+        echo "  start     - شروع ربات"
+        echo "  stop      - توقف ربات"
+        echo "  restart   - راه‌اندازی مجدد"
+        echo "  status    - بررسی وضعیت"
+        echo "  logs      - مشاهده لاگ‌ها (برای دنبال کردن -f اضافه کنید)"
+        echo "  setup     - تنظیم اولیه"
+        echo "  config    - ویرایش تنظیمات"
+        echo "  update    - آپدیت ربات و پکیج‌ها"
+        echo "  test      - اجرای تست‌ها"
+        echo "  clean     - پاک کردن دانلودها"
+        echo "  backup    - تهیه نسخه پشتیبان"
+        echo "  stats     - نمایش آمار"
         echo ""
-        echo "Quick Start:"
+        echo "راه‌اندازی سریع:"
         echo "  1. youtube-bot setup"
-        echo "  2. youtube-bot config  (add your token)"
+        echo "  2. youtube-bot config  (توکن خود را اضافه کنید)"
         echo "  3. youtube-bot start"
         echo "  4. youtube-bot logs -f"
         echo ""
-        echo "Features:"
-        echo "  • Quality selection with file sizes"
-        echo "  • Multiple format support"
-        echo "  • Audio extraction"
-        echo "  • Best quality auto-select"
+        echo "ویژگی‌ها:"
+        echo "  • انتخاب کیفیت با نمایش حجم فایل"
+        echo "  • پشتیبانی از فرمت‌های مختلف"
+        echo "  • استخراج صدا"
+        echo "  • بهترین کیفیت به صورت خودکار"
+        echo "  • رفع مشکل encoding URL"
         ;;
 esac
 CONTROLEOF
@@ -978,93 +1294,34 @@ CONTROLEOF
     print_success "Control script created"
 }
 
-# Create a simple test script
+# Create a test script
 create_test_script() {
     print_info "Creating test script..."
     
-    cat > /opt/youtube_bot/test.py << 'TESTEOF'
+    cat > /opt/youtube_bot/test_url.py << 'TESTEOF'
 #!/usr/bin/env python3
 """
-Test script for YouTube Bot
+Test URL encoding/decoding
 """
 
-import subprocess
-import sys
+import urllib.parse
 
-def test_ytdlp():
-    """Test yt-dlp installation"""
-    try:
-        result = subprocess.run(['yt-dlp', '--version'], 
-                              capture_output=True, text=True)
-        print(f"✅ yt-dlp version: {result.stdout.strip()}")
-        return True
-    except FileNotFoundError:
-        print("❌ yt-dlp not found")
-        return False
+# Test URL
+test_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-def test_ffmpeg():
-    """Test FFmpeg installation"""
-    try:
-        result = subprocess.run(['ffmpeg', '-version'], 
-                              capture_output=True, text=True)
-        lines = result.stdout.split('\n')
-        if lines:
-            print(f"✅ FFmpeg: {lines[0]}")
-        return True
-    except FileNotFoundError:
-        print("❌ FFmpeg not found")
-        return False
+print("Testing URL encoding...")
+print(f"Original URL: {test_url}")
 
-def test_python_packages():
-    """Test Python packages"""
-    packages = ['telegram', 'yt_dlp', 'requests']
-    all_ok = True
-    
-    for package in packages:
-        try:
-            if package == 'telegram':
-                __import__('telegram')
-            elif package == 'yt_dlp':
-                __import__('yt_dlp')
-            elif package == 'requests':
-                __import__('requests')
-            print(f"✅ {package} package OK")
-        except ImportError as e:
-            print(f"❌ {package} package missing: {e}")
-            all_ok = False
-    
-    return all_ok
+encoded = urllib.parse.quote(test_url, safe='')
+print(f"Encoded URL: {encoded}")
 
-def main():
-    """Run all tests"""
-    print("🧪 Running YouTube Bot Tests...")
-    print("=" * 50)
-    
-    tests = [
-        ("Python Packages", test_python_packages),
-        ("yt-dlp", test_ytdlp),
-        ("FFmpeg", test_ffmpeg),
-    ]
-    
-    all_passed = True
-    for test_name, test_func in tests:
-        print(f"\n📋 Testing: {test_name}")
-        print("-" * 30)
-        if not test_func():
-            all_passed = False
-    
-    print("\n" + "=" * 50)
-    if all_passed:
-        print("✅ All tests passed! Bot is ready.")
-    else:
-        print("❌ Some tests failed. Please check installation.")
-        sys.exit(1)
+decoded = urllib.parse.unquote(encoded)
+print(f"Decoded URL: {decoded}")
 
-if __name__ == '__main__':
-    main()
+print(f"\nMatch: {test_url == decoded}")
 TESTEOF
     
-    chmod +x /opt/youtube_bot/test.py
+    chmod +x /opt/youtube_bot/test_url.py
     print_success "Test script created"
 }
 
@@ -1072,65 +1329,64 @@ TESTEOF
 show_completion() {
     echo ""
     echo -e "${GREEN}=============================================="
-    echo "   ADVANCED YOUTUBE BOT INSTALLATION COMPLETE!"
+    echo "   نصب ربات یوتیوب با موفقیت کامل شد!"
     echo "=============================================="
     echo -e "${NC}"
     
-    echo -e "\n${YELLOW}🚀 NEXT STEPS:${NC}"
-    echo "1. ${GREEN}Setup bot:${NC}"
+    echo -e "\n${YELLOW}🚀 مراحل بعدی:${NC}"
+    echo "1. ${GREEN}تنظیم ربات:${NC}"
     echo "   youtube-bot setup"
     echo ""
-    echo "2. ${GREEN}Get Bot Token from @BotFather:${NC}"
-    echo "   • Open Telegram"
-    echo "   • Search for @BotFather"
-    echo "   • Send /newbot"
-    echo "   • Choose name and username"
-    echo "   • Copy token (looks like: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
+    echo "2. ${GREEN}دریافت توکن ربات از @BotFather:${NC}"
+    echo "   • تلگرام را باز کنید"
+    echo "   • @BotFather را جستجو کنید"
+    echo "   • /newbot را ارسال کنید"
+    echo "   • نام و یوزرنیم را انتخاب کنید"
+    echo "   • توکن را کپی کنید (مثال: 1234567890:ABCdefGhIJKlmNoPQRsTUVwxyZ)"
     echo ""
-    echo "3. ${GREEN}Configure bot:${NC}"
+    echo "3. ${GREEN}تنظیم ربات:${NC}"
     echo "   youtube-bot config"
-    echo "   • Add your BOT_TOKEN"
+    echo "   • توکن خود را در فایل اضافه کنید"
     echo ""
-    echo "4. ${GREEN}Test installation:${NC}"
+    echo "4. ${GREEN}تست نصب:${NC}"
     echo "   youtube-bot test"
     echo ""
-    echo "5. ${GREEN}Start bot:${NC}"
+    echo "5. ${GREEN}شروع ربات:${NC}"
     echo "   youtube-bot start"
     echo ""
-    echo "6. ${GREEN}Monitor logs:${NC}"
+    echo "6. ${GREEN}مشاهده لاگ‌ها:${NC}"
     echo "   youtube-bot logs -f"
     echo ""
     
-    echo -e "${YELLOW}🎬 NEW FEATURES:${NC}"
-    echo "• ${GREEN}Quality selection${NC} - Choose from all available formats"
-    echo "• ${GREEN}File size display${NC} - See size before downloading"
-    echo "• ${GREEN}Multiple pages${NC} - Navigate through formats"
-    echo "• ${GREEN}Best quality auto-select${NC}"
-    echo "• ${GREEN}Audio extraction${NC}"
-    echo "• ${GREEN}Enhanced controls${NC} - Backup, clean, stats"
+    echo -e "${YELLOW}🎬 ویژگی‌های جدید:${NC}"
+    echo "• ${GREEN}رفع مشکل URL${NC} - مشکل 'https is not a valid URL' حل شد"
+    echo "• ${GREEN}انتخاب کیفیت${NC} - نمایش تمام فرمت‌ها با حجم"
+    echo "• ${GREEN}صفحه‌بندی${NC} - برای ویدیوهای با فرمت‌های زیاد"
+    echo "• ${GREEN}رابط فارسی${NC} - پیام‌ها به فارسی"
+    echo "• ${GREEN}خطایابی پیشرفته${NC} - لاگ‌گیری کامل"
     echo ""
     
-    echo -e "${YELLOW}⚡ QUICK START:${NC}"
-    echo "1. Send YouTube link to bot"
-    echo "2. Bot shows all available formats with sizes"
-    echo "3. Select your preferred quality"
-    echo "4. Bot downloads and sends the file"
+    echo -e "${YELLOW}⚡ راه‌اندازی سریع:${NC}"
+    echo "1. لینک یوتیوب را برای ربات بفرستید"
+    echo "2. ربات تمام کیفیت‌های موجود را با حجم نشان می‌دهد"
+    echo "3. کیفیت مورد نظر را انتخاب کنید"
+    echo "4. ربات فایل را دانلود و ارسال می‌کند"
     echo ""
     
-    echo -e "${GREEN}✅ Bot is ready! Start with 'youtube-bot start'${NC}"
+    echo -e "${GREEN}✅ ربات آماده است! با 'youtube-bot start' شروع کنید${NC}"
     echo ""
     
-    echo -e "${CYAN}📞 Support:${NC}"
-    echo "View logs: youtube-bot logs"
-    echo "Check status: youtube-bot status"
-    echo "Update bot: youtube-bot update"
-    echo "Clean downloads: youtube-bot clean"
+    echo -e "${CYAN}📞 پشتیبانی:${NC}"
+    echo "مشاهده لاگ: youtube-bot logs"
+    echo "بررسی وضعیت: youtube-bot status"
+    echo "آپدیت ربات: youtube-bot update"
+    echo "پاک کردن دانلودها: youtube-bot clean"
 }
 
 # Main installation
 main() {
     show_logo
-    print_info "Starting Advanced YouTube Bot installation..."
+    print_info "شروع نصب ربات یوتیوب..."
     
     install_deps
     install_python_packages
